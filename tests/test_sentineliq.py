@@ -291,5 +291,244 @@ class TestEvaluation:
         assert metrics["total_users"] == 10
 
 
+class TestOffHoursActivity:
+    """Tests for off-hours activity detection."""
+
+    def test_admin_night_activity(self):
+        from src.rules.off_hours_activity import OffHoursActivityRule
+        rule = OffHoursActivityRule()
+
+        users = pd.DataFrame({
+            "user_id": ["USR001", "USR002"],
+            "username": ["admin1", "user1"],
+            "privilege_level": ["admin", "user"],
+        })
+
+        events = pd.DataFrame({
+            "user_id": ["USR001"] * 3 + ["USR002"],
+            "username": ["admin1"] * 3 + ["user1"],
+            "action": ["file_access"] * 4,
+            "resource": ["PROD_DB"] * 4,
+            "resource_sensitivity": ["high"] * 4,
+            "status": ["success"] * 4,
+            "timestamp": pd.to_datetime([
+                "2024-01-01 02:00", "2024-01-02 03:00",
+                "2024-01-03 01:00", "2024-01-01 14:00"
+            ]),
+            "time_classification": ["night", "night", "night", "business_hours"],
+            "hour": [2, 3, 1, 14],
+            "is_night": [True, True, True, False],
+        })
+
+        findings = rule.evaluate(events, users)
+        assert len(findings) >= 1
+        assert any(f["user_id"] == "USR001" for f in findings)
+
+    def test_weekend_activity_detected(self):
+        from src.rules.off_hours_activity import OffHoursActivityRule
+        rule = OffHoursActivityRule()
+
+        users = pd.DataFrame({
+            "user_id": ["USR001"],
+            "username": ["admin1"],
+            "privilege_level": ["admin"],
+        })
+
+        events = pd.DataFrame({
+            "user_id": ["USR001"] * 3,
+            "username": ["admin1"] * 3,
+            "action": ["file_access"] * 3,
+            "resource": ["PROD_DB"] * 3,
+            "resource_sensitivity": ["high"] * 3,
+            "status": ["success"] * 3,
+            "timestamp": pd.to_datetime([
+                "2024-01-06 10:00", "2024-01-07 11:00", "2024-01-13 09:00"
+            ]),
+            "time_classification": ["weekend", "weekend", "weekend"],
+            "hour": [10, 11, 9],
+            "is_night": [False, False, False],
+        })
+
+        findings = rule.evaluate(events, users)
+        assert len(findings) >= 1
+
+
+class TestCrossDepartmentRule:
+    """Tests for cross-department access detection."""
+
+    def test_cross_dept_access(self):
+        from src.rules.cross_department import CrossDepartmentRule
+        rule = CrossDepartmentRule()
+
+        users = pd.DataFrame({
+            "user_id": ["USR001", "USR002"],
+            "username": ["sales_user", "hr_user"],
+            "department": ["Sales", "HR"],
+            "privilege_level": ["user", "user"],
+        })
+
+        events = pd.DataFrame({
+            "user_id": ["USR001", "USR001", "USR001", "USR002"],
+            "username": ["sales_user", "sales_user", "sales_user", "hr_user"],
+            "action": ["file_access", "sql_query", "api_call", "file_access"],
+            "resource": ["HRIS", "GL_System", "SIEM", "HRIS"],
+            "resource_sensitivity": ["high", "high", "medium", "high"],
+            "timestamp": pd.date_range("2024-01-01", periods=4, freq="h"),
+            "time_classification": ["business_hours"] * 4,
+        })
+
+        findings = rule.evaluate(events, users)
+        # Sales user accessing HR, Finance, and Security resources
+        assert len(findings) >= 1
+        assert any(f["user_id"] == "USR001" for f in findings)
+
+    def test_shared_resources_not_flagged(self):
+        from src.rules.cross_department import CrossDepartmentRule
+        rule = CrossDepartmentRule()
+
+        users = pd.DataFrame({
+            "user_id": ["USR001"],
+            "username": ["user1"],
+            "department": ["Sales"],
+            "privilege_level": ["user"],
+        })
+
+        events = pd.DataFrame({
+            "user_id": ["USR001", "USR001"],
+            "username": ["user1", "user1"],
+            "action": ["file_access", "file_access"],
+            "resource": ["File_Share", "Email_Archive"],
+            "resource_sensitivity": ["low", "medium"],
+            "timestamp": pd.date_range("2024-01-01", periods=2, freq="h"),
+            "time_classification": ["business_hours"] * 2,
+        })
+
+        findings = rule.evaluate(events, users)
+        assert len(findings) == 0
+
+
+class TestPrivilegeEscalationRule:
+    """Tests for privilege escalation detection."""
+
+    def test_escalation_detected(self):
+        from src.rules.privilege_escalation import PrivilegeEscalationRule
+        rule = PrivilegeEscalationRule()
+
+        users = pd.DataFrame({
+            "user_id": ["USR001"],
+            "username": ["user1"],
+            "privilege_level": ["user"],
+        })
+
+        events = pd.DataFrame({
+            "user_id": ["USR001"] * 4,
+            "username": ["user1"] * 4,
+            "action": ["admin_operation", "admin_operation", "admin_operation", "admin_operation"],
+            "resource": ["PROD_DB", "ADMIN_SYS", "AWS_IAM", "SIEM"],
+            "resource_sensitivity": ["high", "high", "high", "medium"],
+            "timestamp": pd.date_range("2024-01-01", periods=4, freq="h"),
+            "time_classification": ["business_hours"] * 4,
+        })
+
+        findings = rule.evaluate(events, users)
+        assert len(findings) >= 1
+        assert findings[0]["user_id"] == "USR001"
+
+
+class TestServiceAccountRule:
+    """Tests for service account misuse detection."""
+
+    def test_interactive_login_detected(self):
+        from src.rules.service_accounts import ServiceAccountRule
+        rule = ServiceAccountRule()
+
+        users = pd.DataFrame({
+            "user_id": ["USR001", "USR002"],
+            "username": ["svc_bot", "normal_user"],
+            "privilege_level": ["service-account", "user"],
+        })
+
+        events = pd.DataFrame({
+            "user_id": ["USR001", "USR001", "USR002"],
+            "username": ["svc_bot", "svc_bot", "normal_user"],
+            "action": ["login", "file_access", "login"],
+            "resource": ["VPN", "PROD_DB", "VPN"],
+            "resource_sensitivity": ["low", "high", "low"],
+            "timestamp": pd.date_range("2024-01-01", periods=3, freq="h"),
+            "time_classification": ["business_hours"] * 3,
+            "source_ip": ["10.0.0.1", "10.0.0.1", "10.0.0.2"],
+        })
+
+        findings = rule.evaluate(events, users)
+        assert len(findings) >= 1
+        assert any(f["user_id"] == "USR001" for f in findings)
+
+
+class TestStaleAccountReturnType:
+    """Test that stale account returns None for non-stale users."""
+
+    def test_returns_none_for_normal_user(self):
+        from src.rules.stale_accounts import StaleAccountRule
+        rule = StaleAccountRule()
+
+        user = pd.Series({
+            "user_id": "USR001",
+            "username": "normal_user",
+            "privilege_level": "user",
+            "days_inactive": 5,
+            "is_active": True,
+            "systems_count": 2,
+            "last_login": "2024-03-01",
+            "systems_access": "AD",
+        })
+
+        result = rule._check_user(user)
+        assert result is None  # Not empty dict
+
+
+class TestAPIEndpoints:
+    """Tests for FastAPI endpoints."""
+
+    @pytest.fixture
+    def client(self):
+        """Create a test client."""
+        from fastapi.testclient import TestClient
+        from api.main import app
+        return TestClient(app)
+
+    def test_health_check(self, client):
+        """Test health check endpoint."""
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+
+    def test_analyze_not_run(self, client):
+        """Test summary endpoint before analysis."""
+        response = client.get("/summary")
+        assert response.status_code == 400
+
+    def test_findings_not_run(self, client):
+        """Test findings endpoint before analysis."""
+        response = client.get("/findings")
+        assert response.status_code == 400
+
+    def test_feedback_submit(self, client):
+        """Test feedback submission."""
+        response = client.post("/feedback", json={
+            "user_id": "USR001",
+            "action": "approve",
+            "reason": "Verified legitimate access"
+        })
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+    def test_feedback_get(self, client):
+        """Test feedback retrieval."""
+        response = client.get("/feedback")
+        assert response.status_code == 200
+        assert isinstance(response.json(), list)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

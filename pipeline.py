@@ -80,6 +80,7 @@ class SentinelIQPipeline:
         self.user_features: Optional[pd.DataFrame] = None
         self.event_features: Optional[pd.DataFrame] = None
         self.rule_findings: List[Dict] = []
+        self.combined_features: Optional[pd.DataFrame] = None
         self.scores_df: Optional[pd.DataFrame] = None
         self.graph: Optional[object] = None
 
@@ -115,19 +116,25 @@ class SentinelIQPipeline:
             self.events_df, self.users_df
         )
 
+        # Step 3b: Aggregate user + event features into combined matrix
+        logger.info("Step 3b: Aggregating features...")
+        self.combined_features = self.aggregator.aggregate(
+            self.user_features, self.event_features
+        )
+
         # Step 4: Rule Engine
         logger.info("Step 4: Running rule engine...")
         self.rule_findings = self._run_rule_engine()
 
         # Step 5: ML Anomaly Detection
         logger.info("Step 5: Running anomaly detection...")
-        ml_results = self.anomaly_detector.fit_predict(self.user_features)
+        ml_results = self.anomaly_detector.fit_predict(self.combined_features)
         ml_scored = self.ml_scorer.score(ml_results)
 
         # Step 6: Risk Scoring
         logger.info("Step 6: Calculating risk scores...")
         self.scores_df = self.risk_scorer.calculate_scores(
-            self.user_features, self.rule_findings, ml_scored
+            self.combined_features, self.rule_findings, ml_scored
         )
 
         # Step 7: Build Privilege Graph

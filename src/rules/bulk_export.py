@@ -60,9 +60,9 @@ class BulkExportRule:
             else:
                 time_span = 24
 
-            # Night exports are more suspicious
+            # Night/weekend exports are more suspicious
             night_exports = user_export_events[
-                user_export_events["time_classification"].isin(["night", "unusual_hours"])
+                user_export_events["time_classification"].isin(["night", "unusual_hours", "weekend"])
             ]
 
             score = min(100, self.WEIGHT + len(user_export_events) * 10)

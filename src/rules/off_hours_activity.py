@@ -37,10 +37,10 @@ class OffHoursActivityRule:
         # Get admin users
         admin_users = set(users_df[users_df["privilege_level"] == "admin"]["user_id"])
 
-        # Filter night/unusual events
+        # Filter night/unusual/weekend events
         night_events = events_df[
-            (events_df["time_classification"].isin(["night", "unusual_hours"])) |
-            (events_df["is_night"] == True)
+            (events_df["time_classification"].isin(["night", "unusual_hours", "weekend"])) |
+            (events_df["is_night"])
         ]
 
         # Check admin users with night activity

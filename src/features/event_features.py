@@ -77,18 +77,7 @@ class EventFeatureEngine:
     def _add_cross_department_flag(self, events_df: pd.DataFrame,
                                     users_df: pd.DataFrame) -> pd.DataFrame:
         """Add cross-department access flags."""
-        # Define resource-department mapping
-        resource_department_map = {
-            "HRIS": "HR",
-            "GL_System": "Finance",
-            "BI_Tool": "Finance",
-            "Admin_Console": "IT",
-            "SIEM": "Security",
-            "PROD_DB": "Engineering",
-            "Data_Lake": "Engineering",
-            "File_Share": None,  # Shared resource
-            "Email_Archive": None,  # Shared resource
-        }
+        from ..constants import RESOURCE_DEPARTMENT_MAP
 
         # Merge user department
         df = events_df.merge(
@@ -98,7 +87,7 @@ class EventFeatureEngine:
         )
 
         # Map resource to expected department
-        df["resource_department"] = df["resource"].map(resource_department_map)
+        df["resource_department"] = df["resource"].map(RESOURCE_DEPARTMENT_MAP)
 
         # Cross-department flag
         df["is_cross_department"] = (

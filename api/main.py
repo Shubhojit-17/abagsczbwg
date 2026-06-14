@@ -7,6 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -15,10 +16,24 @@ import uvicorn
 
 from pipeline import SentinelIQPipeline
 
+# Global pipeline instance
+pipeline: Optional[SentinelIQPipeline] = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize pipeline on startup."""
+    global pipeline
+    pipeline = SentinelIQPipeline(data_dir="data", output_dir="outputs")
+    yield
+    # Cleanup (if needed) on shutdown
+
+
 app = FastAPI(
     title="SentinelIQ API",
     description="Identity Security Analytics Platform - REST API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -29,9 +44,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Global pipeline instance
-pipeline: Optional[SentinelIQPipeline] = None
 
 
 # --- Pydantic Models ---
@@ -82,13 +94,6 @@ feedback_store: List[Dict] = []
 
 
 # --- API Endpoints ---
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize pipeline on startup."""
-    global pipeline
-    pipeline = SentinelIQPipeline(data_dir="data", output_dir="outputs")
-
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(request: AnalyzeRequest):

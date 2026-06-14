@@ -137,29 +137,29 @@ class RiskScorer:
         all_reasons = []
 
         # Apply role exceptions
-        _, role_reason = self.role_exceptions.apply_exceptions(user, 50)
-        adj = self.role_exceptions.apply_exceptions(user, 50)[0] - 50
+        role_score, role_reason = self.role_exceptions.apply_exceptions(user, 50)
+        adj = role_score - 50
         total_adjustment += adj
         if "No role" not in role_reason:
             all_reasons.append(role_reason)
 
         # Apply new hire rules
-        _, hire_reason = self.new_hire_rules.apply_new_hire_context(user, 50)
-        adj = self.new_hire_rules.apply_new_hire_context(user, 50)[0] - 50
+        hire_score, hire_reason = self.new_hire_rules.apply_new_hire_context(user, 50)
+        adj = hire_score - 50
         total_adjustment += adj
         if "Not a new" not in hire_reason and "No hire" not in hire_reason:
             all_reasons.append(hire_reason)
 
         # Apply contractor rules
-        _, contractor_reason = self.contractor_rules.apply_contractor_context(user, 50)
-        adj = self.contractor_rules.apply_contractor_context(user, 50)[0] - 50
+        contractor_score, contractor_reason = self.contractor_rules.apply_contractor_context(user, 50)
+        adj = contractor_score - 50
         total_adjustment += adj
         if "Not a contractor" not in contractor_reason:
             all_reasons.append(contractor_reason)
 
         # Apply banking calendar
-        _, cal_reason = self.banking_calendar.apply_calendar_context(user, 50)
-        adj = self.banking_calendar.apply_calendar_context(user, 50)[0] - 50
+        cal_score, cal_reason = self.banking_calendar.apply_calendar_context(user, 50)
+        adj = cal_score - 50
         total_adjustment += adj
         if "Not finance" not in cal_reason and "No calendar" not in cal_reason:
             all_reasons.append(cal_reason)

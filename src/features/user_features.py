@@ -116,11 +116,12 @@ class UserFeatureEngine:
 
         # After-hours ratio
         time_class_counts = events_df.groupby("user_id")["time_classification"].value_counts().unstack(fill_value=0)
-        if "unusual_hours" in time_class_counts.columns or "night" in time_class_counts.columns:
+        if any(col in time_class_counts.columns for col in ["unusual_hours", "night", "weekend"]):
             unusual = time_class_counts.get("unusual_hours", 0)
             night = time_class_counts.get("night", 0)
+            weekend = time_class_counts.get("weekend", 0)
             total = time_class_counts.sum(axis=1)
-            after_hours_ratio = ((unusual + night) / total).fillna(0)
+            after_hours_ratio = ((unusual + night + weekend) / total).fillna(0)
             after_hours_df = after_hours_ratio.reset_index()
             after_hours_df.columns = ["user_id", "after_hours_ratio"]
             agg = agg.merge(after_hours_df, on="user_id", how="left")

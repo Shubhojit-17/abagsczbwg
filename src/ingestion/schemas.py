@@ -70,5 +70,5 @@ class EventSchema:
     ])
 
     valid_time_classifications: List[str] = field(default_factory=lambda: [
-        "business_hours", "unusual_hours", "night"
+        "business_hours", "unusual_hours", "night", "weekend"
     ])

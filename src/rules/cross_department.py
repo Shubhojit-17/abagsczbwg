@@ -10,6 +10,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+from src.constants import RESOURCE_DEPARTMENT_MAP, SHARED_RESOURCES
+
+
 class CrossDepartmentRule:
     """Detect cross-department access violations."""
 
@@ -17,19 +20,10 @@ class CrossDepartmentRule:
     WEIGHT = 15
     SEVERITY = "MEDIUM"
 
-    # Resource to owning department mapping
+    # Use centralized resource-department mapping
     RESOURCE_OWNERSHIP = {
-        "HRIS": "HR",
-        "GL_System": "Finance",
-        "BI_Tool": "Finance",
-        "Admin_Console": "IT",
-        "SIEM": "Security",
-        "PROD_DB": "Engineering",
-        "Data_Lake": "Engineering",
+        k: v for k, v in RESOURCE_DEPARTMENT_MAP.items() if v is not None
     }
-
-    # Shared resources (no department restriction)
-    SHARED_RESOURCES = {"File_Share", "Email_Archive", "VPN"}
 
     def evaluate(self, events_df: pd.DataFrame, users_df: pd.DataFrame) -> List[Dict]:
         """
@@ -40,10 +34,10 @@ class CrossDepartmentRule:
         """
         findings = []
 
-        # Merge user department into events
+        # Merge user department into events (exclude username to avoid column collision)
         events_with_dept = events_df.merge(
-            users_df[["user_id", "department", "username", "privilege_level"]],
-            on="user_id", how="left", suffixes=("", "_user")
+            users_df[["user_id", "department", "privilege_level"]],
+            on="user_id", how="left"
         )
 
         for user_id in events_with_dept["user_id"].unique():
@@ -62,7 +56,7 @@ class CrossDepartmentRule:
             violations = []
             for _, event in user_events.iterrows():
                 resource = event.get("resource", "")
-                if resource in self.SHARED_RESOURCES:
+                if resource in SHARED_RESOURCES:
                     continue
 
                 expected_dept = self.RESOURCE_OWNERSHIP.get(resource)

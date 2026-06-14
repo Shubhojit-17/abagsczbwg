@@ -4,7 +4,7 @@ Identifies accounts that are inactive but still retain privileged access.
 """
 
 import pandas as pd
-from typing import List, Dict
+from typing import List, Dict, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class StaleAccountRule:
         logger.info(f"Stale account rule: {len(findings)} findings")
         return findings
 
-    def _check_user(self, user: pd.Series) -> Dict:
+    def _check_user(self, user: pd.Series) -> Optional[Dict]:
         """Check a single user for stale account risk."""
         days_inactive = user.get("days_inactive", 0)
         privilege_level = user.get("privilege_level", "user")
@@ -114,4 +114,4 @@ class StaleAccountRule:
                 "recommendation": "Identify owner. If no owner, disable immediately and schedule deletion.",
             }
 
-        return {}
+        return None
